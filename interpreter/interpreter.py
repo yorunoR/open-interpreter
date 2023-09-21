@@ -3,7 +3,6 @@ from .utils import merge_deltas, parse_partial_json
 from .message_block import MessageBlock
 from .code_block import CodeBlock
 from .code_interpreter import CodeInterpreter
-from .llama_2 import get_llama_2_instance
 
 import os
 import time
@@ -12,7 +11,6 @@ import platform
 import openai
 import getpass
 import requests
-import readline
 import urllib.parse
 import tokentrim as tt
 from pprint import pprint
@@ -42,20 +40,6 @@ function_schema = {
   },
 }
 
-# Message for when users don't have an OpenAI API key.
-missing_api_key_message = """> OpenAI API key not found
-
-To use `GPT-4` (recommended) please provide an OpenAI API key.
-
-To use `Code-Llama` (free but less capable) press `enter`.
-"""
-
-confirm_mode_message = """
-**Open Interpreter** will require approval before running code. Use `interpreter -y` to bypass this.
-
-Press `CTRL-C` to exit.
-"""
-
 class Interpreter:
   def __init__(self):
     self.messages = []
@@ -66,7 +50,6 @@ class Interpreter:
     self.model = "gpt-4"
     self.debug_mode = False
 
-    # Get default system message
     here = os.path.abspath(os.path.dirname(__file__))
     with open(os.path.join(here, 'system_message.txt'), 'r') as f:
       self.system_message = f.read().strip()
@@ -74,16 +57,10 @@ class Interpreter:
     # Store Code Interpreter instances for each language
     self.code_interpreters = {}
 
-    # No active block to start
-    # (blocks are visual representation of messages on the terminal)
     self.active_block = None
 
-    # Note: While Open Interpreter can use Llama, we will prioritize gpt-4.
-    # gpt-4 is faster, smarter, can call functions, and is all-around easier to use.
-    # This makes gpt-4 better aligned with Open Interpreters priority to be easy to use.
-    self.llama_instance = None
-
   def cli(self):
+    print("========== CLI ==========")
     # The cli takes the current instance of Interpreter,
     # modifies it according to command line flags, then runs chat.
     cli(self)
@@ -96,31 +73,12 @@ class Interpreter:
     info += f"\n\n[User Info]\nName: {username}\nCWD: {current_working_directory}\nOS: {operating_system}"
     return info
 
-  def reset(self):
-    self.messages = []
-    self.code_interpreters = {}
-
-  def load(self, messages):
-    self.messages = messages
-
-  def chat(self, message=None, return_messages=False):
+  def chat(self):
     self.verify_api_key()
     welcome_message = ""
-
-    # If self.local, we actually don't use self.model
-    # (self.auto_run is like advanced usage, we display no messages)
     if not self.local and not self.auto_run:
       welcome_message += f"\n> Model set to `{self.model.upper()}`\n\n**Tip:** To run locally, use `interpreter --local`"
-
-    # If not auto_run, tell the user we'll ask permission to run code
-    # We also tell them here how to exit Open Interpreter
-    if not self.auto_run:
-      welcome_message += "\n\n" + confirm_mode_message
-
     welcome_message = welcome_message.strip()
-
-    # Print welcome message with newlines on either side (aesthetic choice)
-    # unless we're starting with a blockquote (aesthetic choice)
     if welcome_message != "":
       if welcome_message.startswith(">"):
         print(Markdown(welcome_message), '')
@@ -136,10 +94,6 @@ class Interpreter:
         print()  # Aesthetic choice
         break
 
-      # Use `readline` to let users up-arrow to previous user messages,
-      # which is a common behavior in terminals.
-      readline.add_history(user_input)
-
       self.messages.append({"role": "user", "content": user_input})
 
       try:
@@ -149,9 +103,6 @@ class Interpreter:
       finally:
         # Always end the active block. Multiple Live displays = issues
         self.end_active_block()
-
-    if return_messages:
-        return self.messages
 
   def verify_api_key(self):
     if self.api_key == None:
@@ -179,15 +130,15 @@ class Interpreter:
       stream=True,
       temperature=self.temperature,
     )
-    pprint("====== prompt ======")
+    pprint("====== prompt begin ======")
     pprint(messages)
+    pprint("====== prompt end ========")
 
     # Initialize message, function call trackers, and active block
     self.messages.append({})
     in_function_call = False
     self.active_block = None
 
-    pprint("====== response ======")
     for chunk in response:
       delta = chunk["choices"][0]["delta"]
       self.messages[-1] = merge_deltas(self.messages[-1], delta)
@@ -208,12 +159,8 @@ class Interpreter:
           # then create a new code block
           self.active_block = CodeBlock()
 
-        # Remember we're in a function_call
         in_function_call = True
 
-        # Now let's parse the function's arguments:
-
-        # gpt-4
         # Parse arguments and save to parsed_arguments, under function_call
         if "arguments" in self.messages[-1]["function_call"]:
           arguments = self.messages[-1]["function_call"]["arguments"]
@@ -236,23 +183,18 @@ class Interpreter:
           return
 
         if chunk["choices"][0]["finish_reason"] == "function_call":
-          # Time to call the function!
-          # (Because this is Open Interpreter, we only have one function.)
-
           print("Running function:")
           print(self.messages[-1])
           print("---")
 
           # Ask for user confirmation to run code
           if self.auto_run == False:
-
             # End the active block so you can run input() below it
             # Save language and code so we can create a new block in a moment
             self.active_block.end()
             language = self.active_block.language
             code = self.active_block.code
 
-            # Prompt user
             response = input("  Would you like to run this code? (y/n)\n\n  ")
             print("")  # <- Aesthetic choice
 
@@ -261,7 +203,6 @@ class Interpreter:
               self.active_block = CodeBlock()
               self.active_block.language = language
               self.active_block.code = code
-
             else:
               # User declined to run code.
               self.active_block.end()
@@ -299,8 +240,7 @@ class Interpreter:
             return
 
           # Create or retrieve a Code Interpreter for this language
-          language = self.messages[-1]["function_call"]["parsed_arguments"][
-            "language"]
+          language = self.messages[-1]["function_call"]["parsed_arguments"]["language"]
           if language not in self.code_interpreters:
             self.code_interpreters[language] = CodeInterpreter(language, self.debug_mode)
           code_interpreter = self.code_interpreters[language]
