@@ -127,45 +127,28 @@ class Interpreter:
       else:
         print('', Markdown(welcome_message), '')
 
-    # Check if `message` was passed in by user
-    if message:
-      # If it was, we respond non-interactivley
-      self.messages.append({"role": "user", "content": message})
-      self.respond()
+    while True:
+      try:
+        user_input = input("> ").strip()
+      except EOFError:
+        break
+      except KeyboardInterrupt:
+        print()  # Aesthetic choice
+        break
 
-    else:
-      # If it wasn't, we start an interactive chat
-      while True:
-        try:
-          user_input = input("> ").strip()
-        except EOFError:
-          break
-        except KeyboardInterrupt:
-          print()  # Aesthetic choice
-          break
+      # Use `readline` to let users up-arrow to previous user messages,
+      # which is a common behavior in terminals.
+      readline.add_history(user_input)
 
-        # Use `readline` to let users up-arrow to previous user messages,
-        # which is a common behavior in terminals.
-        readline.add_history(user_input)
+      self.messages.append({"role": "user", "content": user_input})
 
-        # Add the user message to self.messages
-        self.messages.append({"role": "user", "content": user_input})
-
-        # Let the user turn on debug mode mid-chat
-        if user_input == "%debug":
-            print('', Markdown("> Entered debug mode"), '')
-            print(self.messages)
-            self.debug_mode = True
-            continue
-
-        # Respond, but gracefully handle CTRL-C / KeyboardInterrupt
-        try:
-          self.respond()
-        except KeyboardInterrupt:
-          pass
-        finally:
-          # Always end the active block. Multiple Live displays = issues
-          self.end_active_block()
+      try:
+        self.respond()
+      except KeyboardInterrupt:
+        pass
+      finally:
+        # Always end the active block. Multiple Live displays = issues
+        self.end_active_block()
 
     if return_messages:
         return self.messages
@@ -337,5 +320,4 @@ class Interpreter:
             "content": self.active_block.output if self.active_block.output else "No output"
           })
 
-          # Go around again
           self.respond()
