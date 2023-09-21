@@ -316,20 +316,12 @@ class Interpreter:
         stream=True,
         temperature=self.temperature,
       )
+      print("====== prompt ======")
+      print(messages)
+      print("====== response ======")
+      print(response)
     elif self.local:
-      # Code-Llama
-      
-      # Turn function messages -> system messages for llama compatability
-      messages = self.messages
-      for message in messages:
-        if message['role'] == 'function':
-            message['role'] = 'system'
-          
-      response = self.llama_instance.create_chat_completion(
-        messages=messages,
-        stream=True,
-        temperature=self.temperature,
-      )
+      pass
 
     # Initialize message, function call trackers, and active block
     self.messages.append({})
