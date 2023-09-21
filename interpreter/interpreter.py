@@ -44,7 +44,6 @@ class Interpreter:
   def __init__(self):
     self.messages = []
     self.temperature = 0.001
-    self.api_key = None
     self.auto_run = False
     self.local = False
     self.model = "gpt-4"
@@ -60,9 +59,6 @@ class Interpreter:
     self.active_block = None
 
   def cli(self):
-    print("========== CLI ==========")
-    # The cli takes the current instance of Interpreter,
-    # modifies it according to command line flags, then runs chat.
     cli(self)
 
   def get_info_for_system_message(self):
@@ -74,16 +70,7 @@ class Interpreter:
     return info
 
   def chat(self):
-    self.verify_api_key()
-    welcome_message = ""
-    if not self.local and not self.auto_run:
-      welcome_message += f"\n> Model set to `{self.model.upper()}`\n\n**Tip:** To run locally, use `interpreter --local`"
-    welcome_message = welcome_message.strip()
-    if welcome_message != "":
-      if welcome_message.startswith(">"):
-        print(Markdown(welcome_message), '')
-      else:
-        print('', Markdown(welcome_message), '')
+    openai.api_key = os.environ['OPENAI_API_KEY']
 
     while True:
       try:
@@ -103,14 +90,6 @@ class Interpreter:
       finally:
         # Always end the active block. Multiple Live displays = issues
         self.end_active_block()
-
-  def verify_api_key(self):
-    if self.api_key == None:
-      if 'OPENAI_API_KEY' in os.environ:
-        self.api_key = os.environ['OPENAI_API_KEY']
-      else:
-        pass
-    openai.api_key = self.api_key
 
   def end_active_block(self):
     if self.active_block:
