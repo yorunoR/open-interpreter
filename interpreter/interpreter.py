@@ -92,17 +92,10 @@ class Interpreter:
     cli(self)
 
   def get_info_for_system_message(self):
-    """
-    Gets relevent information for the system message.
-    """
-
     info = ""
-
-    # Add user info
     username = getpass.getuser()
     current_working_directory = os.getcwd()
     operating_system = platform.system()
-
     info += f"\n\n[User Info]\nName: {username}\nCWD: {current_working_directory}\nOS: {operating_system}"
 
     # Open Procedures is an open-source database of tiny, structured coding tutorials.
@@ -281,25 +274,15 @@ class Interpreter:
     # Initialize message, function call trackers, and active block
     self.messages.append({})
     in_function_call = False
-    llama_function_call_finished = False
     self.active_block = None
 
     pprint("====== response ======")
     for chunk in response:
       delta = chunk["choices"][0]["delta"]
-      pprint("====== delta begin ======")
-      pprint(delta)
-      pprint("====== delta end ======")
-
-      # Accumulate deltas into the last message in messages
       self.messages[-1] = merge_deltas(self.messages[-1], delta)
 
       condition = "function_call" in self.messages[-1]
-
       if condition:
-        # We are in a function call.
-
-        # Check if we just entered a function call
         if in_function_call == False:
 
           # If so, end the last block,
@@ -331,31 +314,24 @@ class Interpreter:
 
 
       else:
-        # We are not in a function call.
-
-        # Remember we're not in a function_call
         in_function_call = False
-
-        # If there's no active block,
         if self.active_block == None:
-
-          # Create a message block
           self.active_block = MessageBlock()
 
-      # Update active_block
       self.active_block.update_from_message(self.messages[-1])
 
-      # Check if we're finished
-      if chunk["choices"][0]["finish_reason"] or llama_function_call_finished:
-        if chunk["choices"][
-            0]["finish_reason"] == "function_call" or llama_function_call_finished:
+      if chunk["choices"][0]["finish_reason"]:
+        if chunk["choices"][0]["finish_reason"] != "function_call":
+          self.active_block.end()
+          return
+
+        if chunk["choices"][0]["finish_reason"] == "function_call":
           # Time to call the function!
           # (Because this is Open Interpreter, we only have one function.)
 
-          if self.debug_mode:
-            print("Running function:")
-            print(self.messages[-1])
-            print("---")
+          print("Running function:")
+          print(self.messages[-1])
+          print("---")
 
           # Ask for user confirmation to run code
           if self.auto_run == False:
@@ -436,9 +412,3 @@ class Interpreter:
 
           # Go around again
           self.respond()
-
-        if chunk["choices"][0]["finish_reason"] != "function_call":
-          # Done!
-
-          self.active_block.end()
-          return
