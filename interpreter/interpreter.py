@@ -97,36 +97,6 @@ class Interpreter:
     current_working_directory = os.getcwd()
     operating_system = platform.system()
     info += f"\n\n[User Info]\nName: {username}\nCWD: {current_working_directory}\nOS: {operating_system}"
-
-    # Open Procedures is an open-source database of tiny, structured coding tutorials.
-    # We can query it semantically and append relevant tutorials/procedures to our system message:
-
-    # Use the last two messages' content or function call to semantically search
-    query = []
-    for message in self.messages[-2:]:
-      message_for_semantic_search = {"role": message["role"]}
-      if "content" in message:
-        message_for_semantic_search["content"] = message["content"]
-      if "function_call" in message and "parsed_arguments" in message["function_call"]:
-        message_for_semantic_search["function_call"] = message["function_call"]["parsed_arguments"]
-      query.append(message_for_semantic_search)
-
-    url = "https://open-procedures.replit.app/search/"
-
-    pprint("===== query =====")
-    pprint(query)
-
-    try:
-      relevant_procedures = requests.get(url, data=json.dumps(query)).json()["procedures"]
-      pprint(relevant_procedures)
-      info += "\n\n# Recommended Procedures\n" + "\n---\n".join(relevant_procedures) + "\nIn your plan, include steps and, if present, **EXACT CODE SNIPPETS** (especially for depracation notices, **WRITE THEM INTO YOUR PLAN -- underneath each numbered step** as they will VANISH once you execute your first line of code, so WRITE THEM DOWN NOW if you need them) from the above procedures if they are relevant to the task. Again, include **VERBATIM CODE SNIPPETS** from the procedures above if they are relevent to the task **directly in your plan.**"
-    except Exception as e:
-      pprint(requests.get(url, data=json.dumps(query)))
-      pprint(e)
-      # For someone, this failed for a super secure SSL reason.
-      # Since it's not stricly necessary, let's worry about that another day. Should probably log this somehow though.
-      pass
-
     return info
 
   def reset(self):
