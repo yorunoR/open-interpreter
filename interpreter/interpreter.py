@@ -111,13 +111,18 @@ class Interpreter:
         message_for_semantic_search["function_call"] = message["function_call"]["parsed_arguments"]
       query.append(message_for_semantic_search)
 
-    # Use them to query Open Procedures
     url = "https://open-procedures.replit.app/search/"
+
+    pprint("===== query =====")
+    pprint(query)
 
     try:
       relevant_procedures = requests.get(url, data=json.dumps(query)).json()["procedures"]
+      pprint(relevant_procedures)
       info += "\n\n# Recommended Procedures\n" + "\n---\n".join(relevant_procedures) + "\nIn your plan, include steps and, if present, **EXACT CODE SNIPPETS** (especially for depracation notices, **WRITE THEM INTO YOUR PLAN -- underneath each numbered step** as they will VANISH once you execute your first line of code, so WRITE THEM DOWN NOW if you need them) from the above procedures if they are relevant to the task. Again, include **VERBATIM CODE SNIPPETS** from the procedures above if they are relevent to the task **directly in your plan.**"
-    except:
+    except Exception as e:
+      pprint(requests.get(url, data=json.dumps(query)))
+      pprint(e)
       # For someone, this failed for a super secure SSL reason.
       # Since it's not stricly necessary, let's worry about that another day. Should probably log this somehow though.
       pass
@@ -251,6 +256,8 @@ class Interpreter:
     # Add relevant info to system_message
     # (e.g. current working directory, username, os, etc.)
     info = self.get_info_for_system_message()
+    pprint("===== info =====")
+    pprint(info)
     system_message = self.system_message + "\n\n" + info
 
     messages = tt.trim(self.messages, self.model, system_message=system_message)
