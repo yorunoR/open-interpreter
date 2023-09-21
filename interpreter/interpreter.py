@@ -20,7 +20,6 @@ from rich import print
 from rich.markdown import Markdown
 from rich.rule import Rule
 
-# Function schema for gpt-4
 function_schema = {
   "name": "run_code",
   "description":
@@ -57,9 +56,7 @@ confirm_mode_message = """
 Press `CTRL-C` to exit.
 """
 
-
 class Interpreter:
-
   def __init__(self):
     self.messages = []
     self.temperature = 0.001
@@ -107,16 +104,8 @@ class Interpreter:
     self.messages = messages
 
   def chat(self, message=None, return_messages=False):
-
-    # Connect to an LLM (an large language model)
-    # gpt-4
     self.verify_api_key()
-
-    # Display welcome message
     welcome_message = ""
-
-    if self.debug_mode:
-      welcome_message += "> Entered debug mode"
 
     # If self.local, we actually don't use self.model
     # (self.auto_run is like advanced usage, we display no messages)
@@ -182,39 +171,11 @@ class Interpreter:
         return self.messages
 
   def verify_api_key(self):
-    """
-    Makes sure we have an OPENAI_API_KEY.
-    """
-
     if self.api_key == None:
-
       if 'OPENAI_API_KEY' in os.environ:
         self.api_key = os.environ['OPENAI_API_KEY']
       else:
-        # This is probably their first time here!
-        print('', Markdown("**Welcome to Open Interpreter.**"), '')
-        time.sleep(1)
-
-        print(Rule(style="white"))
-
-        print(Markdown(missing_api_key_message), '', Rule(style="white"), '')
-        response = input("OpenAI API key: ")
-
-        if response == "":
-            # User pressed `enter`, requesting Code-Llama
-            self.local = True
-
-            print(Markdown("> Switching to `Code-Llama`...\n\n**Tip:** Run `interpreter --local` to automatically use `Code-Llama`."), '')
-            time.sleep(2)
-            print(Rule(style="white"))
-            return
-
-        else:
-            self.api_key = response
-            print('', Markdown("**Tip:** To save this key for later, run `export OPENAI_API_KEY=your_api_key` on Mac/Linux or `setx OPENAI_API_KEY your_api_key` on Windows."), '')
-            time.sleep(2)
-            print(Rule(style="white"))
-
+        pass
     openai.api_key = self.api_key
 
   def end_active_block(self):
@@ -223,21 +184,11 @@ class Interpreter:
       self.active_block = None
 
   def respond(self):
-    # Add relevant info to system_message
-    # (e.g. current working directory, username, os, etc.)
     info = self.get_info_for_system_message()
-    pprint("===== info =====")
-    pprint(info)
     system_message = self.system_message + "\n\n" + info
 
     messages = tt.trim(self.messages, self.model, system_message=system_message)
 
-    if self.debug_mode:
-      print("\n", "Sending `messages` to LLM:", "\n")
-      print(messages)
-      print()
-
-    # gpt-4
     response = openai.ChatCompletion.create(
       model=self.model,
       messages=messages,
@@ -288,7 +239,6 @@ class Interpreter:
             # Only overwrite what we have if it's not None (which means it failed to parse)
             self.messages[-1]["function_call"][
               "parsed_arguments"] = new_parsed_arguments
-
 
       else:
         in_function_call = False
