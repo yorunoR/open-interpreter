@@ -1,60 +1,68 @@
 import os
+import subprocess
 import sys
-import wget
+
 import appdirs
 import inquirer
-import subprocess
-import contextlib
+import wget
 from rich import print
 from rich.markdown import Markdown
 
 
 def get_llama_2_instance():
-
     # First, we ask them which model they want to use.
-    print('', Markdown("**Open Interpreter** will use `Code Llama` for local execution. Use your arrow keys to set up the model."), '')
-        
+    print("", Markdown("**Open Interpreter** will use `Code Llama` for local execution. Use your arrow keys to set up the model."), "")
+
     models = {
-        '7B': {
-            'Low': {'URL': 'https://huggingface.co/TheBloke/CodeLlama-7B-GGUF/resolve/main/codellama-7b.Q2_K.gguf', 'Size': '3.01 GB', 'RAM': '5.51 GB'},
-            'Medium': {'URL': 'https://huggingface.co/TheBloke/CodeLlama-7B-GGUF/resolve/main/codellama-7b.Q4_K_M.gguf', 'Size': '4.24 GB', 'RAM': '6.74 GB'},
-            'High': {'URL': 'https://huggingface.co/TheBloke/CodeLlama-7B-GGUF/resolve/main/codellama-7b.Q8_0.gguf', 'Size': '7.16 GB', 'RAM': '9.66 GB'}
+        "7B": {
+            "Low": {"URL": "https://huggingface.co/TheBloke/CodeLlama-7B-GGUF/resolve/main/codellama-7b.Q2_K.gguf", "Size": "3.01 GB", "RAM": "5.51 GB"},
+            "Medium": {"URL": "https://huggingface.co/TheBloke/CodeLlama-7B-GGUF/resolve/main/codellama-7b.Q4_K_M.gguf", "Size": "4.24 GB", "RAM": "6.74 GB"},
+            "High": {"URL": "https://huggingface.co/TheBloke/CodeLlama-7B-GGUF/resolve/main/codellama-7b.Q8_0.gguf", "Size": "7.16 GB", "RAM": "9.66 GB"},
         },
-        '13B': {
-            'Low': {'URL': 'https://huggingface.co/TheBloke/CodeLlama-13B-GGUF/resolve/main/codellama-13b.Q2_K.gguf', 'Size': '5.66 GB', 'RAM': '8.16 GB'},
-            'Medium': {'URL': 'https://huggingface.co/TheBloke/CodeLlama-13B-GGUF/resolve/main/codellama-13b.Q4_K_M.gguf', 'Size': '8.06 GB', 'RAM': '10.56 GB'},
-            'High': {'URL': 'https://huggingface.co/TheBloke/CodeLlama-13B-GGUF/resolve/main/codellama-13b.Q8_0.gguf', 'Size': '13.83 GB', 'RAM': '16.33 GB'}
+        "13B": {
+            "Low": {"URL": "https://huggingface.co/TheBloke/CodeLlama-13B-GGUF/resolve/main/codellama-13b.Q2_K.gguf", "Size": "5.66 GB", "RAM": "8.16 GB"},
+            "Medium": {
+                "URL": "https://huggingface.co/TheBloke/CodeLlama-13B-GGUF/resolve/main/codellama-13b.Q4_K_M.gguf",
+                "Size": "8.06 GB",
+                "RAM": "10.56 GB",
+            },
+            "High": {"URL": "https://huggingface.co/TheBloke/CodeLlama-13B-GGUF/resolve/main/codellama-13b.Q8_0.gguf", "Size": "13.83 GB", "RAM": "16.33 GB"},
         },
-        '34B': {
-            'Low': {'URL': 'https://huggingface.co/TheBloke/CodeLlama-34B-GGUF/resolve/main/codellama-34b.Q2_K.gguf', 'Size': '14.21 GB', 'RAM': '16.71 GB'},
-            'Medium': {'URL': 'https://huggingface.co/TheBloke/CodeLlama-34B-GGUF/resolve/main/codellama-34b.Q4_K_M.gguf', 'Size': '20.22 GB', 'RAM': '22.72 GB'},
-            'High': {'URL': 'https://huggingface.co/TheBloke/CodeLlama-34B-GGUF/resolve/main/codellama-34b.Q8_0.gguf', 'Size': '35.79 GB', 'RAM': '38.29 GB'}
-        }
+        "34B": {
+            "Low": {"URL": "https://huggingface.co/TheBloke/CodeLlama-34B-GGUF/resolve/main/codellama-34b.Q2_K.gguf", "Size": "14.21 GB", "RAM": "16.71 GB"},
+            "Medium": {
+                "URL": "https://huggingface.co/TheBloke/CodeLlama-34B-GGUF/resolve/main/codellama-34b.Q4_K_M.gguf",
+                "Size": "20.22 GB",
+                "RAM": "22.72 GB",
+            },
+            "High": {"URL": "https://huggingface.co/TheBloke/CodeLlama-34B-GGUF/resolve/main/codellama-34b.Q8_0.gguf", "Size": "35.79 GB", "RAM": "38.29 GB"},
+        },
     }
-    
+
     # First stage: Select parameter size
     parameter_choices = list(models.keys())
-    questions = [inquirer.List('param', message="Parameter count (smaller is faster, larger is more capable)", choices=parameter_choices)]
+    questions = [inquirer.List("param", message="Parameter count (smaller is faster, larger is more capable)", choices=parameter_choices)]
     answers = inquirer.prompt(questions)
-    chosen_param = answers['param']
-    
+    chosen_param = answers["param"]
+
     # Second stage: Select quality level
     def format_quality_choice(quality, model):
         return f"{quality} | Size: {model['Size']}, RAM usage: {model['RAM']}"
+
     quality_choices = [format_quality_choice(quality, models[chosen_param][quality]) for quality in models[chosen_param]]
-  
-    questions = [inquirer.List('quality', message="Quality (lower is faster, higher is more capable)", choices=quality_choices)]
+
+    questions = [inquirer.List("quality", message="Quality (lower is faster, higher is more capable)", choices=quality_choices)]
     answers = inquirer.prompt(questions)
-    chosen_quality = answers['quality'].split(' ')[0]  # Extracting the 'small', 'medium', or 'large' from the selected choice
+    chosen_quality = answers["quality"].split(" ")[0]  # Extracting the 'small', 'medium', or 'large' from the selected choice
 
     # Third stage: GPU confirm
     if confirm_action("Use GPU? (Large models might crash on GPU, but will run more quickly)"):
-      n_gpu_layers = -1
+        n_gpu_layers = -1
     else:
-      n_gpu_layers = 0
+        n_gpu_layers = 0
 
-    # Get the URL based on choices 
-    url = models[chosen_param][chosen_quality]['URL']
+    # Get the URL based on choices
+    url = models[chosen_param][chosen_quality]["URL"]
     file_name = url.split("/")[-1]
 
     # Get user data directory
@@ -65,12 +73,7 @@ def get_llama_2_instance():
     os.makedirs(default_path, exist_ok=True)
 
     # Define the directories to check
-    directories_to_check = [
-        default_path,
-        "llama.cpp/models/",
-        os.path.expanduser("~") + "/llama.cpp/models/",
-        "/"
-    ]
+    directories_to_check = [default_path, "llama.cpp/models/", os.path.expanduser("~") + "/llama.cpp/models/", "/"]
 
     # Check for the file in each directory
     for directory in directories_to_check:
@@ -81,26 +84,25 @@ def get_llama_2_instance():
     else:
         # If the file was not found, ask for confirmation to download it
         download_path = os.path.join(default_path, file_name)
-        message = f"This instance of `Code-Llama` was not found. Would you like to download it?"
+        message = "This instance of `Code-Llama` was not found. Would you like to download it?"
         if confirm_action(message):
             wget.download(url, download_path)
             model_path = download_path
-            print('\n', "Finished downloading `Code-Llama`.", '\n')
+            print("\n", "Finished downloading `Code-Llama`.", "\n")
         else:
-            print('\n', "Download cancelled. Exiting.", '\n')
+            print("\n", "Download cancelled. Exiting.", "\n")
             return None
 
     try:
         from llama_cpp import Llama
-    except:
+    except Exception:
         # Ask for confirmation to install the required pip package
         message = "`Code-Llama` interface package not found. Install `llama-cpp-python`?"
         if confirm_action(message):
-            
             # We're going to build llama-cpp-python correctly for the system we're on
 
             import platform
-            
+
             def check_command(command):
                 try:
                     subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -109,12 +111,10 @@ def get_llama_2_instance():
                     return False
                 except FileNotFoundError:
                     return False
-            
+
             def install_llama(backend):
-                env_vars = {
-                    "FORCE_CMAKE": "1"
-                }
-                
+                env_vars = {"FORCE_CMAKE": "1"}
+
                 if backend == "cuBLAS":
                     env_vars["CMAKE_ARGS"] = "-DLLAMA_CUBLAS=on"
                 elif backend == "hipBLAS":
@@ -123,21 +123,21 @@ def get_llama_2_instance():
                     env_vars["CMAKE_ARGS"] = "-DLLAMA_METAL=on"
                 else:  # Default to OpenBLAS
                     env_vars["CMAKE_ARGS"] = "-DLLAMA_BLAS=ON -DLLAMA_BLAS_VENDOR=OpenBLAS"
-                
+
                 try:
                     subprocess.run([sys.executable, "-m", "pip", "install", "llama-cpp-python"], env=env_vars, check=True)
                 except subprocess.CalledProcessError as e:
                     print(f"Error during installation with {backend}: {e}")
-            
+
             def supports_metal():
                 # Check for macOS version
                 if platform.system() == "Darwin":
-                    mac_version = tuple(map(int, platform.mac_ver()[0].split('.')))
+                    mac_version = tuple(map(int, platform.mac_ver()[0].split(".")))
                     # Metal requires macOS 10.11 or later
                     if mac_version >= (10, 11):
                         return True
                 return False
-            
+
             # Check system capabilities
             if check_command(["nvidia-smi"]):
                 install_llama("cuBLAS")
@@ -147,9 +147,10 @@ def get_llama_2_instance():
                 install_llama("Metal")
             else:
                 install_llama("OpenBLAS")
-          
+
             from llama_cpp import Llama
-            print('', Markdown("Finished downloading `Code-Llama` interface."), '')
+
+            print("", Markdown("Finished downloading `Code-Llama` interface."), "")
 
             # Tell them if their architecture won't work well
 
@@ -167,22 +168,21 @@ def get_llama_2_instance():
                         print("2. Install it:")
                         print("bash Miniforge3-MacOSX-arm64.sh")
                         print("")
-      
+
         else:
-            print('', "Installation cancelled. Exiting.", '')
+            print("", "Installation cancelled. Exiting.", "")
             return None
 
     # Initialize and return Code-Llama
     llama_2 = Llama(model_path=model_path, n_gpu_layers=n_gpu_layers, verbose=False)
-      
+
     return llama_2
+
 
 def confirm_action(message):
     question = [
-        inquirer.Confirm('confirm',
-                         message=message,
-                         default=True),
+        inquirer.Confirm("confirm", message=message, default=True),
     ]
 
     answers = inquirer.prompt(question)
-    return answers['confirm']
+    return answers["confirm"]
