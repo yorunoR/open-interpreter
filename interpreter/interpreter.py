@@ -5,7 +5,6 @@ from pprint import pprint
 
 import openai
 import tokentrim as tt
-from rich import print
 
 from .cli import cli
 from .code_block import CodeBlock
@@ -31,7 +30,6 @@ class Interpreter:
     def __init__(self):
         self.messages = []
         self.temperature = 0.001
-        self.local = False
         self.model = "gpt-4"
         self.debug_mode = False
 
@@ -41,7 +39,6 @@ class Interpreter:
 
         # Store Code Interpreter instances for each language
         self.code_interpreters = {}
-
         self.active_block = None
 
     def cli(self):
@@ -64,7 +61,6 @@ class Interpreter:
             except EOFError:
                 break
             except KeyboardInterrupt:
-                print()  # Aesthetic choice
                 break
 
             self.messages.append({"role": "user", "content": user_input})
@@ -74,7 +70,6 @@ class Interpreter:
             except KeyboardInterrupt:
                 pass
             finally:
-                # Always end the active block. Multiple Live displays = issues
                 self.end_active_block()
 
     def end_active_block(self):
@@ -100,8 +95,8 @@ class Interpreter:
         pprint("====== prompt end ========")
 
         self.messages.append({})
+        self.active_block = MessageBlock()
         in_function_call = False
-        self.active_block = None
 
         for chunk in response:
             delta = chunk["choices"][0]["delta"]
@@ -111,16 +106,8 @@ class Interpreter:
             if condition:
                 if in_function_call is False:
                     self.end_active_block()
-
-                    # Print newline if it was just a code block or user message
-                    # (this just looks nice)
-                    last_role = self.messages[-2]["role"]
-                    if last_role == "user" or last_role == "function":
-                        print()
-
                     self.active_block = CodeBlock()
-
-                in_function_call = True
+                    in_function_call = True
 
                 if "arguments" in self.messages[-1]["function_call"]:
                     arguments = self.messages[-1]["function_call"]["arguments"]
@@ -128,64 +115,45 @@ class Interpreter:
                     if new_parsed_arguments:
                         self.messages[-1]["function_call"]["parsed_arguments"] = new_parsed_arguments
 
-            else:
-                in_function_call = False
-                if self.active_block is None:
-                    self.active_block = MessageBlock()
-
             self.active_block.update_from_message(self.messages[-1])
 
-            if chunk["choices"][0]["finish_reason"]:
-                if chunk["choices"][0]["finish_reason"] != "function_call":
-                    self.active_block.end()
-                    return
+        if in_function_call is False:
+            self.active_block.end()
+        else:
+            language = self.active_block.language
+            code = self.active_block.code
+            self.active_block.end()
 
-                if chunk["choices"][0]["finish_reason"] == "function_call":
-                    print("Running function:")
-                    print(self.messages[-1])
-                    print("---")
+            response = input("  Would you like to run this code? (y/n)\n\n  ")
+            print("")  # <- Aesthetic choice
 
-                    # End the active block so you can run input() below it
-                    # Save language and code so we can create a new block in a moment
-                    self.active_block.end()
-                    language = self.active_block.language
-                    code = self.active_block.code
+            if response.strip().lower() == "y":
+                self.active_block = CodeBlock()
+                self.active_block.language = language
+                self.active_block.code = code
+            else:
+                self.messages.append({"role": "function", "name": "run_code", "content": "User decided not to run this code."})
+                return
 
-                    response = input("  Would you like to run this code? (y/n)\n\n  ")
-                    print("")  # <- Aesthetic choice
+            if "parsed_arguments" not in self.messages[-1]["function_call"]:
+                self.messages.append(
+                    {
+                        "role": "function",
+                        "name": "run_code",
+                        "content": """Your function call could not be parsed. Please use ONLY the `run_code` function, which takes two parameters: `code` and `language`. Your response should be formatted as a JSON.""",
+                    }
+                )
+                self.respond()
+                return
 
-                    if response.strip().lower() == "y":
-                        self.active_block = CodeBlock()
-                        self.active_block.language = language
-                        self.active_block.code = code
-                    else:
-                        self.active_block.end()
-                        self.messages.append({"role": "function", "name": "run_code", "content": "User decided not to run this code."})
-                        return
+            language = self.messages[-1]["function_call"]["parsed_arguments"]["language"]
+            if language not in self.code_interpreters:
+                self.code_interpreters[language] = CodeInterpreter(language, self.debug_mode)
+            code_interpreter = self.code_interpreters[language]
+            code_interpreter.active_block = self.active_block
 
-                    if not self.local and "parsed_arguments" not in self.messages[-1]["function_call"]:
-                        self.messages.append(
-                            {
-                                "role": "function",
-                                "name": "run_code",
-                                "content": """Your function call could not be parsed. Please use ONLY the `run_code` function, which takes two parameters: `code` and `language`. Your response should be formatted as a JSON.""",
-                            }
-                        )
-                        self.respond()
-                        return
+            code_interpreter.run()
+            self.active_block.end()
 
-                    language = self.messages[-1]["function_call"]["parsed_arguments"]["language"]
-                    if language not in self.code_interpreters:
-                        self.code_interpreters[language] = CodeInterpreter(language, self.debug_mode)
-                    code_interpreter = self.code_interpreters[language]
-
-                    code_interpreter.active_block = self.active_block
-                    code_interpreter.run()
-
-                    self.active_block.end()
-
-                    self.messages.append(
-                        {"role": "function", "name": "run_code", "content": self.active_block.output if self.active_block.output else "No output"}
-                    )
-
-                    self.respond()
+            self.messages.append({"role": "function", "name": "run_code", "content": self.active_block.output if self.active_block.output else "No output"})
+            self.respond()
